@@ -3,7 +3,8 @@
 ## 0.1.2 — Unreleased candidate
 
 - Add a human-only, hidden-input TypeSafe credential setup command; a private plugin-data key enables new Codex sessions without exporting it again. Explicit process `false` still disables remote assessment.
-- Bundle Codex lifecycle hooks for bounded session signals and session plan binding, gated on a hook-minted capability. Codex CLI 0.156.1 did not load these hooks in an installed session; these paths remain unverified in the consumer runtime.
+- Bundle Codex lifecycle hooks for bounded session signals and session plan binding, gated on a hook-minted capability. Codex CLI 0.156.1 did not load the bundled definitions in an installed session; the bundled activation route remains unverified.
+- Add explicit, human-consented user-level hooks as a fallback. Preserve existing user hooks, pin the installed script and actual plugin data path, and require `/hooks` review/trust. The fallback returned `telemetry.status=capturing` after a real installed Codex tool call under test-only trust bypass; interactive `/hooks` trust remains for the operator. A status call without a token is not an activation test.
 - Automatic full-source instruction audit is still blocked by Codex's unavailable effective prompt/active skill catalog API. This candidate is not RSI feature parity.
 
 ## 0.1.1 — 2026-09-24

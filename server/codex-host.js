@@ -1,5 +1,5 @@
 import { createHash, randomBytes } from "node:crypto";
-import { closeSync, constants, fstatSync, mkdirSync, openSync, readSync, readdirSync, renameSync, rmSync, statSync, writeFileSync, writeSync } from "node:fs";
+import { closeSync, constants, fstatSync, lstatSync, mkdirSync, openSync, readSync, readdirSync, renameSync, rmSync, writeFileSync, writeSync } from "node:fs";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -9,12 +9,19 @@ const validPlanId = id => typeof id === "string" && /^[a-zA-Z0-9][a-zA-Z0-9._-]{
 const MAX_EVENTS_BYTES = 1024 * 1024;
 const tokenPattern = /^[a-f0-9]{64}$/u;
 const idPattern = /^[a-zA-Z0-9_-]{1,128}$/u;
-const root = env => join(resolve(env.PLUGIN_DATA ?? join(homedir(), ".codex", "data", "codex-rsi")), "host-sessions");
+const root = env => {
+  const data = resolve(env.PLUGIN_DATA ?? join(homedir(), ".codex", "data", "codex-rsi"));
+  const info = lstatSync(data);
+  if (!info.isDirectory() || info.uid !== process.getuid() || (info.mode & 0o022) !== 0) {
+    throw new Error("Codex plugin data directory must be owned by you and not writable by others");
+  }
+  return join(data, "host-sessions");
+};
 const fileFor = (env, token, file) => join(root(env), token, file);
 
 function privateDirectory(path) {
   mkdirSync(path, { recursive: true, mode: 0o700 });
-  const info = statSync(path);
+  const info = lstatSync(path);
   if (!info.isDirectory() || info.uid !== process.getuid() || (info.mode & 0o077) !== 0) throw new Error("RSI session directory must be private and owned by this user");
 }
 
@@ -37,7 +44,7 @@ function privateFile(path, limit = MAX_EVENTS_BYTES) {
 function session(env, token) {
   if (!tokenPattern.test(token ?? "")) throw new Error("Codex session capability is required; trust the plugin hooks and start a fresh Codex session");
   const dir = fileFor(env, token, "");
-  const info = statSync(dir);
+  const info = lstatSync(dir);
   if (!info.isDirectory() || info.uid !== process.getuid() || (info.mode & 0o077) !== 0) throw new Error("Untrusted Codex session directory");
   const id = privateFile(join(dir, "session-id"), 256).toString("utf8");
   if (!idPattern.test(id)) throw new Error("Invalid Codex session identity");
