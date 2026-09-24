@@ -1,0 +1,12 @@
+{
+  "name": "codex-rsi-local",
+  "interface": { "displayName": "Codex RSI (local)" },
+  "plugins": [
+    {
+      "name": "codex-rsi",
+      "source": { "source": "local", "path": "./" },
+      "policy": { "installation": "AVAILABLE", "authentication": "ON_INSTALL" },
+      "category": "Productivity"
+    }
+  ]
+}
