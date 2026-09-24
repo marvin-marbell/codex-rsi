@@ -3,7 +3,7 @@
   "version": "0.1.2",
   "private": true,
   "type": "module",
-  "description": "Codex plugin for revision-bound agent memory, plans, policy and RSI",
+  "description": "Codex plugin for memory, plans, policy and opt-in RSI signals with incomplete host parity",
   "license": "MIT",
   "engines": { "node": ">=22" },
   "scripts": {
