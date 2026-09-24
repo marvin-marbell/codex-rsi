@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { dirname, join, relative, resolve } from "node:path";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
@@ -9,8 +9,7 @@ import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js"
 const plugin = resolve(import.meta.dirname, "..");
 const memoryModule = join(plugin, "node_modules", "omp-rsi", "cli", "src");
 
-async function fixture(t, extra = {}) {
-  const directory = mkdtempSync(join(tmpdir(), "codex-rsi-mcp-"));
+async function fixture(t, extra = {}, directory = mkdtempSync(join(tmpdir(), "codex-rsi-mcp-"))) {
   const base = join(directory, "selected-memory");
   const config = join(directory, "config.json");
   writeFileSync(config, JSON.stringify({ memoryBase: base, memoryBin: join(directory, "missing-memory-bin"), pythonBin: "python3" }), { mode: 0o600 });
@@ -95,9 +94,9 @@ test("forbidden action and malformed input fail closed without creating state", 
   const { call, directory } = await fixture(t);
   rejected(await call("memory_setup", { action: "install" }), /CODEX_RSI_SETUP_APPROVED=true/);
   rejected(await call("memory_setup", { action: "status", unexpected: "discard me" }), /Input validation error/);
-  rejected(await call("memory_plan", { action: "bind", request: '{"plan_id":"x"}' }), /no authenticated session identity/);
-  rejected(await call("memory_rsi", { action: "audit" }), /Automatic audit requires session system prompt/);
-  rejected(await call("memory_rsi", { action: "observe" }), /session telemetry unavailable/);
+  rejected(await call("memory_plan", { action: "bind", request: '{"plan_id":"x"}' }), /Codex session capability required/);
+  rejected(await call("memory_rsi", { action: "audit" }), /Automatic audit requires a complete effective prompt/);
+  rejected(await call("memory_rsi", { action: "observe" }), /current invoking agent/);
   rejected(await call("gitnexus", { action: "analyze", cwd: directory, embeddings: true }), /Input validation error/);
   assert.equal(result(await call("memory_rsi", { action: "status" })).enabled, false);
   assert.equal(result(await call("memory_setup", { action: "status" })).memory.ready, false);
@@ -105,7 +104,7 @@ test("forbidden action and malformed input fail closed without creating state", 
   assert.equal(result(await call("memory_setup", { action: "status", no_git: true })).memory.ready, true);
 });
 
-test("remote opt-in comes only from operator process environment, never JSON settings", async t => {
+test("remote opt-in comes from private key setup or explicit operator environment, never JSON settings", async t => {
   const directory = mkdtempSync(join(tmpdir(), "codex-rsi-operator-"));
   t.after(() => rmSync(directory, { recursive: true, force: true }));
   const { loadConfig } = await import("../server/config.js");
@@ -116,4 +115,89 @@ test("remote opt-in comes only from operator process environment, never JSON set
   assert.equal(loadConfig({ PLUGIN_DATA: directory, CODEX_RSI_CONFIG: config }).typesafeEnabled, false);
   assert.equal(loadConfig({ PLUGIN_DATA: directory, CODEX_RSI_CONFIG: config, CODEX_RSI_TYPESAFE_ENABLED: "true" }).typesafeEnabled, true);
   assert.throws(() => loadConfig({ PLUGIN_DATA: "./project-data" }), /absolute/);
+});
+
+test("private TypeSafe key survives new MCP sessions without an exported key", async t => {
+  const directory = mkdtempSync(join(tmpdir(), "codex-rsi-key-"));
+  writeFileSync(join(directory, "typesafe.key"), "test-only-key\n", { mode: 0o600 });
+  const disabled = await fixture(t, { CODEX_RSI_TYPESAFE_ENABLED: "false", TYPESAFE_API_KEY: "" }, directory);
+  const first = result(await disabled.call("memory_rsi", { action: "status" }));
+  assert.equal(first.enabled, false);
+  assert.equal(first.configured, false);
+
+  const enabled = { TYPESAFE_API_KEY: "" };
+  const session = await fixture(t, enabled, directory);
+  const status = result(await session.call("memory_rsi", { action: "status" }));
+  assert.equal(status.enabled, true);
+  assert.equal(status.configured, true);
+  assert.doesNotMatch(JSON.stringify(status), /test-only-key/);
+  await session.client.close();
+  const restarted = await fixture(t, enabled, directory);
+  assert.equal(result(await restarted.call("memory_rsi", { action: "status" })).configured, true);
+});
+
+test("unsafe TypeSafe key files fail closed at server startup", async t => {
+  const directory = mkdtempSync(join(tmpdir(), "codex-rsi-key-permissions-"));
+  t.after(() => rmSync(directory, { recursive: true, force: true }));
+  const path = join(directory, "typesafe.key");
+  writeFileSync(path, "test-only-key\n", { mode: 0o644 });
+  const { spawnSync } = await import("node:child_process");
+  const start = () => spawnSync(process.execPath, [join(plugin, "server", "index.js")], {
+    env: { ...process.env, PLUGIN_DATA: directory, CODEX_RSI_TYPESAFE_ENABLED: undefined, TYPESAFE_API_KEY: "" },
+    input: "", encoding: "utf8", timeout: 5000,
+  });
+  const denied = start();
+  assert.notEqual(denied.status, 0);
+  assert.match(denied.stderr, /owned regular file.*mode 0600/);
+  assert.doesNotMatch(denied.stderr, /test-only-key/);
+  chmodSync(path, 0o600);
+  const accepted = start();
+  assert.equal(accepted.status, 0, accepted.stderr);
+});
+
+test("Codex hook-origin session signals observe, clear and recover without raw tool data", async t => {
+  const { spawnSync } = await import("node:child_process");
+  const directory = mkdtempSync(join(tmpdir(), "codex-rsi-hook-"));
+  const hook = event => {
+    const run = spawnSync(process.execPath, [join(plugin, "server", "codex-host.js")], {
+      env: { ...process.env, PLUGIN_DATA: directory }, input: JSON.stringify(event), encoding: "utf8", timeout: 5000,
+    });
+    assert.equal(run.status, 0, run.stderr);
+    return run.stdout;
+  };
+  const message = JSON.parse(hook({ session_id: "codex-test-session", hook_event_name: "SessionStart", source: "startup" }));
+  const token = message.hookSpecificOutput.additionalContext.match(/capability: ([a-f0-9]{64})/)[1];
+  hook({ session_id: "codex-test-session", hook_event_name: "PostToolUse", tool_name: "Bash", tool_use_id: "one", tool_response: { exit_code: 1, stdout: "private data" }, tool_input: { command: "private command" } });
+  hook({ session_id: "codex-test-session", hook_event_name: "PostToolUse", tool_name: "Bash", tool_use_id: "two", tool_response: { exit_code: 0 } });
+  const { call, client } = await fixture(t, {}, directory);
+  result(await call("memory_setup", { action: "initialize", no_git: true }));
+  rejected(await call("memory_rsi", { action: "observe", no_git: true }), /current invoking agent/);
+  rejected(await call("memory_rsi", { action: "observe", session_token: "f".repeat(64), no_git: true }), /ENOENT|session/);
+  const observed = result(await call("memory_rsi", { action: "observe", session_token: token, no_git: true }));
+  assert.equal(observed.telemetry.totals.failed, 1);
+  assert.equal(observed.telemetry.totals.success, 1);
+  assert.equal(observed.telemetry.sequences.recoveries, 1);
+  const review = result(await call("memory_plan", { action: "review", request: '{"template_id":"coding"}' }));
+  const created = result(await call("memory_plan", { action: "create", session_token: token, no_git: true,
+    request: JSON.stringify({ plan_id: "codex-session-plan", template_id: "coding", template_revision: review.revision,
+      task: { title: "Session bound plan", purpose: "Track current Codex session", good: "Binding persists across MCP restart", work_items: [
+        { id: "work", title: "Current session", owner: "operator", requirement_ids: ["outcome", "ast", "lsp", "design", "gitops", "verification"] },
+      ] } }),
+  }));
+  assert.equal(created.session_binding.bound, true);
+  assert.equal(readFileSync(join(directory, "host-sessions", token, "plan-id"), "utf8"), "codex-session-plan");
+  assert.doesNotMatch(JSON.stringify(observed), /private data|private command|codex-test-session/);
+  const cleared = result(await call("memory_rsi", { action: "clear_signals", session_token: token }));
+  assert.equal(cleared.cleared, true);
+  await client.close();
+  const resumed = await fixture(t, {}, directory);
+  const after = result(await resumed.call("memory_rsi", { action: "observe", session_token: token, no_git: true }));
+  assert.equal(result(await resumed.call("memory_plan", { action: "unbind", session_token: token })).bound, false);
+  assert.equal(result(await resumed.call("memory_plan", { action: "bind", session_token: token, request: '{"plan_id":"codex-session-plan"}' })).bound, true);
+  assert.equal(after.telemetry.totals.total, 0);
+  hook({ session_id: "codex-test-session", hook_event_name: "PostToolUse", tool_name: "Bash", tool_use_id: "three", tool_response: { exit_code: 0 } });
+  const recovery = result(await resumed.call("memory_rsi", { action: "observe", session_token: token, no_git: true }));
+  assert.equal(recovery.telemetry.totals.total, 1);
+  hook({ session_id: "codex-test-session", hook_event_name: "SessionEnd", reason: "other" });
+  rejected(await resumed.call("memory_rsi", { action: "observe", session_token: token, no_git: true }), /ENOENT|session/);
 });
