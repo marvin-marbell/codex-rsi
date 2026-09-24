@@ -1,6 +1,6 @@
 # Codex RSI
 
-A local [Codex plugin](https://developers.openai.com/plugins/build/plugins) with a stdio MCP server and eleven skills. It adapts the memory, revision-bound plans, policy, RSI and graph-only GitNexus implementation from [`omp-rsi`](https://github.com/marvin-marbell/omp-rsi) at commit `0f27ca6e21985e03fe44b6bb838e425228462d13`. The core is pinned to an immutable public archive with an integrity-checked npm lockfile. No OMP process or plugin installation is modified.
+A local [Codex plugin](https://developers.openai.com/plugins/build/plugins) with a stdio MCP server and ten skills. It adapts the memory, revision-bound plans, policy, RSI and graph-only GitNexus implementation from [`omp-rsi`](https://github.com/marvin-marbell/omp-rsi) at commit `0f27ca6e21985e03fe44b6bb838e425228462d13`. The core is pinned to an immutable public archive with an integrity-checked npm lockfile. No OMP process or plugin installation is modified.
 
 ## Install
 
@@ -18,7 +18,7 @@ The last command prints `installedPath`. **Codex copies the plugin without `node
 npm ci --prefix /the/printed/installedPath --ignore-scripts
 ```
 
-Restart or resume Codex after installation: an already-running session does not acquire new plugin tools or skills. Confirm `codex-rsi:memory-workflow` appears in the skill catalog and call `codex-rsi.memory_setup` with `{"action":"status"}`. Installing a plugin is not proof that its MCP server or memory backend is ready. The eleven skills live under `skills/`; ten preserve the managed workflow names and `memory-workflow` describes the Codex RSI tool sequence.
+Restart or resume Codex after installation: an already-running session does not acquire new plugin tools or skills. Confirm `codex-rsi:memory-workflow` appears in the skill catalog and call `codex-rsi.memory_setup` with `{"action":"status"}`. Installing a plugin is not proof that its MCP server or memory backend is ready. The ten skills live under `skills/`: nine portable managed workflows and the Codex-specific `memory-workflow`. The OMP-only self-test skill is intentionally excluded.
 
 To update a local installation, remove and re-add the plugin (the installed copy is separate from the source checkout), reinstall locked Node dependencies in the new `installedPath`, and reopen Codex. Keep the plugin's writable data directory when updating; it contains operator configuration and optionally local memory/runtime, not repository assets.
 
