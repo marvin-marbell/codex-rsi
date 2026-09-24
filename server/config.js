@@ -36,10 +36,47 @@ function operatorSettings(path) {
   } finally { closeSync(fd); }
 }
 
-export function loadConfig(env = process.env) {
+export function pluginData(env = process.env) {
   const data = env.PLUGIN_DATA ?? join(homedir(), ".codex", "data", "codex-rsi");
   if (!isAbsolute(data)) throw new Error("PLUGIN_DATA must be an absolute operator-selected path");
-  const root = resolve(data);
+  return resolve(data);
+}
+
+// The pinned RSI engine reads its credential from process.env. Bridge the
+// private operator key only into this MCP server process after opt-in.
+export function loadTypeSafeCredential(config, env = process.env) {
+  if (config.typesafeEnabled !== true || env[config.typesafeApiKeyEnv]) return;
+  const path = join(pluginData(env), "typesafe.key");
+  let fd;
+  try {
+    fd = openSync(path, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
+  } catch (error) {
+    if (error.code === "ENOENT") return;
+    throw new Error(`TypeSafe credential file cannot be opened: ${error.code}`);
+  }
+  try {
+    const info = fstatSync(fd);
+    if (!info.isFile() || info.size < 1 || info.size > 16 * 1024 ||
+        info.uid !== process.getuid() || (info.mode & 0o077) !== 0) {
+      throw new Error("TypeSafe credential must be an owned regular file of at most 16 KiB with mode 0600 or stricter");
+    }
+    const bytes = Buffer.alloc(info.size);
+    let length = 0;
+    while (length < bytes.length) {
+      const count = readSync(fd, bytes, length, bytes.length - length, length);
+      if (!count) throw new Error("TypeSafe credential changed while reading");
+      length += count;
+    }
+    try {
+      const key = new TextDecoder("utf-8", { fatal: true }).decode(bytes).replace(/\r?\n$/, "");
+      if (!key || /[\r\n\0]/u.test(key)) throw new Error("TypeSafe credential must be a single nonempty line");
+      process.env[config.typesafeApiKeyEnv] = key;
+    } finally { bytes.fill(0); }
+  } finally { closeSync(fd); }
+}
+
+export function loadConfig(env = process.env) {
+  const root = pluginData(env);
   const selected = env.CODEX_RSI_CONFIG ?? join(root, "config.json");
   let present = Boolean(env.CODEX_RSI_CONFIG);
   if (!present) {
@@ -51,8 +88,13 @@ export function loadConfig(env = process.env) {
   if (!isAbsolute(base)) throw new Error("CODEX_RSI_BASE must be an absolute operator-selected path");
   const remote = env.CODEX_RSI_TYPESAFE_ENABLED;
   if (remote !== undefined && remote !== "true" && remote !== "false") throw new Error("CODEX_RSI_TYPESAFE_ENABLED must be true or false");
-  // The remote disclosure switch is *only* an operator process environment choice.
-  // Neither plugin settings nor repository-local files can enable it.
+  // The interactive, operator-owned key file is persistent opt-in. An explicit
+  // process false vetoes it; JSON settings and project files cannot enable it.
+  let keyPresent = false;
+  if (remote === undefined) {
+    try { lstatSync(join(root, "typesafe.key")); keyPresent = true; }
+    catch (error) { if (error.code !== "ENOENT") throw error; }
+  }
   return runtimeConfig({
     timeoutMs: 60_000, setupTimeoutMs: 600_000, gitnexusTimeoutMs: 120_000,
     rsiLearningTimeoutMs: 300_000, typesafeTimeoutMs: 20_000,
@@ -60,6 +102,6 @@ export function loadConfig(env = process.env) {
     typesafeEndpoint: "https://api.typesafe.ai/v1/systemone", typesafeModel: "jev-latest",
     typesafeApiKeyEnv: "TYPESAFE_API_KEY", rsiInstructionDiscoveryEnabled: false,
     rsiTelemetryEnabled: false, ...saved, base: resolve(base),
-    runtimeDir: saved.runtimeDir ?? join(root, "runtime"), typesafeEnabled: remote === "true",
+    runtimeDir: saved.runtimeDir ?? join(root, "runtime"), typesafeEnabled: remote === "true" || (remote === undefined && keyPresent),
   });
 }
