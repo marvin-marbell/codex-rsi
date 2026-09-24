@@ -55,7 +55,7 @@ function requireOperatorApproval(env, action) {
 export function createServer(env = process.env) {
   const config = loadConfig(env);
   const memory = createMemoryRunner(config);
-  const server = new McpServer({ name: "codex-rsi", version: "0.1.0" });
+  const server = new McpServer({ name: "codex-rsi", version: "0.1.1" });
   const setup = setupHandler(config, env);
   const pi = {
     zod: z,

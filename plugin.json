@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "codex-rsi",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Local revision-bound memory, plans, policy and RSI for Codex",
   "repository": "https://github.com/marvin-marbell/codex-rsi",
   "license": "MIT"

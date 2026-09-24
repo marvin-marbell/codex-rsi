@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.1 — 2026-09-24
+
+- Remove the OMP-only `omp-rsi-dogfooding` skill from the Codex catalog; retain nine reusable managed skills and `memory-workflow`.
+
 ## 0.1.0 — 2026-09-24
 
 - Add a portable Codex plugin with an installed stdio MCP adapter for pinned OMP RSI memory, revision-bound plans and policy, local RSI actions and graph-only GitNexus.
