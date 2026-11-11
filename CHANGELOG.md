@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Update the pinned OMP core for revision-bound plan steering, ordinary process-policy changes and structured engineering lessons.
+- Align Codex tool descriptions and skills with current user outcomes while retaining host and disclosure boundaries.
+
 ## 0.1.2 — 2026-09-24 (scoped release)
 
 - Add a human-only, hidden-input TypeSafe credential setup command; a private plugin-data key enables new Codex sessions without exporting it again. Explicit process `false` still disables remote assessment.

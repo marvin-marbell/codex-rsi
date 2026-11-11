@@ -1,6 +1,6 @@
 # Codex RSI
 
-A local [Codex plugin](https://developers.openai.com/plugins/build/plugins) with a stdio MCP server and ten skills. It adapts the memory, revision-bound plans, policy, RSI and graph-only GitNexus implementation from [`omp-rsi`](https://github.com/marvin-marbell/omp-rsi) at commit `0f27ca6e21985e03fe44b6bb838e425228462d13`. The core is pinned to an immutable public archive with an integrity-checked npm lockfile. **This is not yet a complete RSI parity port:** Codex does not expose the complete effective system/developer prompt or active skill catalog to the plugin, so automatic full-source instruction audit cannot run. No OMP process or plugin installation is modified.
+A local [Codex plugin](https://developers.openai.com/plugins/build/plugins) with a stdio MCP server and ten skills. It adapts the memory, revision-bound plans, policy, RSI and graph-only GitNexus implementation from [`omp-rsi`](https://github.com/marvin-marbell/omp-rsi) at commit `e46174be0a6594556c1ed3ca6a112e66db8698b1`. The core is pinned to an immutable public archive with an integrity-checked npm lockfile. **This is not yet a complete RSI parity port:** Codex does not expose the complete effective system/developer prompt or active skill catalog to the plugin, so automatic full-source instruction audit cannot run. No OMP process or plugin installation is modified.
 
 ## Install
 

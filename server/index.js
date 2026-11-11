@@ -68,8 +68,8 @@ export function createServer(env = process.env) {
       const inputSchema = definition.parameters.strict();
       const description = {
         memory_setup: "Explicit Codex-local setup. Status is read-only; install, migration apply and instruction sync apply also require the operator process environment CODEX_RSI_SETUP_APPROVED=true. Initialize is explicit; nothing installs or imports on startup.",
-        memory_plan: "Revision-bound plans. If Codex loads trusted hooks, a bearer session_token selects a hook-originated Codex session binding in private plugin data; MCP cannot attest the invoking session. Read/update can also pass an explicit plan_id. No OMP session-branch binding is claimed.",
-        memory_policy: "Read or explicitly revise the persistent memory policy. Codex does not inject it into the system prompt; syncing a managed section requires an operator-configured instructionFiles allowlist.",
+        memory_plan: "Optional revision-bound plans; steer records current user direction without replacing the original task. If Codex loads trusted hooks, a bearer session_token selects a hook-originated Codex session binding in private plugin data; MCP cannot attest the invoking session. Read/update can also pass an explicit plan_id. No OMP session-branch binding is claimed.",
+        memory_policy: "Read or use the authorized revision-checked writer to add, revise, relax or retire ordinary process policy. Preserve user requirements and security boundaries. Codex does not inject policy into the system prompt; syncing a managed section requires an operator-configured instructionFiles allowlist.",
         memory_rsi: "Pinned RSI engine for plans, policy, local observations and opt-in TypeSafe assessment. If Codex loads trusted hooks, bearer session_token selects bounded hook-origin tool-result signals for observe/clear_signals; MCP cannot attest the invoking session. Complete automatic prompt/skill capture remains unavailable; supply exact audit sources. Human credential setup is in server/configure-typesafe.js.",
       }[definition.name] ?? definition.description;
       server.registerTool(definition.name, {
